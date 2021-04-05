@@ -5,7 +5,6 @@ It inclues a maze generator and a 3d First-person-view navigator.
 
 To-do:
 - Wall textures.
-- Exit.
 - Treasure.
 - Enemies.
 - Allies. 
