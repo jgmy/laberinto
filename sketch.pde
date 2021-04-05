@@ -2,6 +2,8 @@
  made with Processing
  */
 
+
+
 /* map dimensions*/
 int alto=40;
 int ancho=40;
@@ -10,8 +12,12 @@ float h, w, xx, yy;
 float fdir=0;
 /* map generation x and y */
 int x, y;
+
 /* map generation status (true=ended)*/
 boolean acabado=false;
+/*Position of labrynth exits */
+int salidaX=-1, salidaY=-1;
+
 /* map matrix (array) */
 int[][] mapa=new int[alto][ancho];
 /* int directions. 0=N, 1=E*/
@@ -21,7 +27,24 @@ static PVector[] dir={
   new PVector(0, 1), 
   new PVector(-1, 0), 
 };
+
+/* Map tiles. Hardcoded from -1 to 3 */
+static final int MAPA_WALL=-1;
+/* Note these depend on PVector dir */
+static final int MAPA_N=0;
+static final int MAPA_E=1;
+static final int MAPA_S=2;
+static final int MAPA_W=3;
+/* Also, it is hardcoded that dirs< 4*/
+/* You can redefine the following:*/
+static final int MAPA_START =5;
+static final int MAPA_PASILLO =8;
+static final int MAPA_OUTSIDE =9;
+static final int MAPA_EXIT=10;
+
+/* for debug */
 String[] messages={};
+
 /* 3d canvas*/
 PGraphics lienzo;
 
@@ -44,10 +67,10 @@ void setup() {
   /* initialize map */
   /* inside is -1, borders are 9.*/
   for (f=0; f<alto; f++) {
-    mapa[f][0]=9;
-    mapa[f][ancho-1]=9;
+    mapa[f][0]=MAPA_OUTSIDE;
+    mapa[f][ancho-1]=MAPA_OUTSIDE;
     for (g=1; g<(ancho-1); g++) {
-      mapa[f][g]=((f==0|f==(alto-1)) ? 9: -1);
+      mapa[f][g]=((f==0|f==(alto-1)) ? MAPA_OUTSIDE: MAPA_WALL);
     }
   }
 
@@ -56,9 +79,13 @@ void setup() {
   y=alto/2;     /*map generator start y*/
   yy=height/2;  /* 3d view start y*/
   mapa[x][y]=5; /* marks start/end tile*/
+
+  //make some shapes
+  makeShapes();
 }
 
 void draw() {
+
   int curDir=-1;
   if (acabado==false) {
     /* generate map until done */
@@ -69,11 +96,10 @@ void draw() {
       fdir=HALF_PI * ((curDir+1)%4);
     }
   } else {
-   
+
     /* if map is done, show 3d view */
     /* tresd  is 3d spelt in Spanish*/
     tresde();
-    
   }
   showMessages();
 }
@@ -112,14 +138,18 @@ void tresde() {
       lienzo.pushMatrix();
       lienzo.translate(ix*w, iy*w, 0);
       switch (mapa[int(ix)][int(iy)]) {
-        case -1:
-        
+      case MAPA_WALL:
+
         lienzo.fill(128);
         lienzo.box(w);
         break;
-        case 9:
-        lienzo.fill(0,255,0);
+      case MAPA_OUTSIDE:
+        lienzo.fill(0, 255, 0);
         lienzo.box(w);
+        break;
+      case MAPA_EXIT:
+        lienzo.fill(128, 128, 0);
+        lienzo.shape(EXIT);
         break;
       }
       lienzo.popMatrix();
@@ -149,7 +179,7 @@ void tresde() {
   equilatero(width/2, 800+h3, 100, -HALF_PI);
   equilatero(5*w6, 800+h3, 100, 0);
   textAlign(CENTER);
-  text(fdir, width/2,50);
+  text(fdir, width/2, 50);
 }
 
 /* draw regular triangle */
@@ -186,7 +216,7 @@ void mousePressed() {
     case 1:
       int ix=round(xx/w+cos(fdir));
       int iy=round(yy/w+sin(fdir));
-      
+
       printms ("test map["+ix+"]["+iy+"]");
       if ((ix>0) && (iy>0)) {
         if ((ix<ancho) && (iy<alto)) {
@@ -261,14 +291,14 @@ int generar() {
       curDir=(mapa[x][y]+2)%4;
       /* always move 2 steps */
       for (f=0; f<2; f++) {
-        mapa[x][y]=8;
+        mapa[x][y]=MAPA_PASILLO;
         x+=dir[curDir].x;
         y+=dir[curDir].y;
-        if (mapa[x][y]==5) acabado=true;
+        if (mapa[x][y]==MAPA_START) acabado=true;
       }
 
       /* hemos acabado?*/
-      if (mapa[x][y]==5) acabado=true;
+      if (mapa[x][y]==MAPA_START) acabado=true;
     }
   } else {
     // Choose a random direction
@@ -290,6 +320,7 @@ int generar() {
   dibujar();
 
   if (acabado) {
+    openExit();
     /* End Text */
     /* just in case we disable 3d view */
     textSize(40);
@@ -331,27 +362,27 @@ void dibujar() {
         /* free square / wall */
         fill(0);
         break;
-      case 9:
+      case MAPA_OUTSIDE:
         /* borders*/
         fill(128, 0, 0);
         break;
-      case 8: 
+      case MAPA_PASILLO: 
         /* no way out */
         fill(255);
         break;
-      case 0: /* way N*/
+      case MAPA_N: /* way N*/
         fill(255, 0, 0);
         break;
-      case 1: /* way E*/
+      case MAPA_E: /* way E*/
         fill(0, 255, 0);
         break;
-      case 2: /* way S*/
+      case MAPA_S: /* way S*/
         fill(128, 0, 128);
         break;
-      case 3: /* way W*/
+      case MAPA_W: /* way W*/
         fill(0, 128, 128);
         break;
-      case 5: /* start/end */
+      case MAPA_START: /* start/end */
         fill(255, 128, 128);
         break;
       }
@@ -360,19 +391,67 @@ void dibujar() {
     }
   }
 }
-void printms(String A){
+void printms(String A) {
   println(A);
-  messages=append(messages,A);
+  messages=append(messages, A);
 }
-void showMessages(){
+void showMessages() {
   int f;
   if (messages.length==0) return;
-  if (messages.length>5){
-    messages=subset(messages, messages.length-5,5);
+  if (messages.length>5) {
+    messages=subset(messages, messages.length-5, 5);
   }
   textAlign(LEFT);
   fill(0);
-  for (f=0;f<messages.length; f++){
-    text(messages[f],50,f*50);
+  for (f=0; f<messages.length; f++) {
+    text(messages[f], 50, f*50);
   }
+}
+
+/* Opens an exit from the outside of the map */
+void openExit() {
+  int dirX=0; 
+  int dirY=0;
+  int whereY;
+  //0: 0; 1= random; 2=ancho-1;
+  int whereX=int(random (3));
+
+  switch (whereX) {
+    // whereX=0 or 2. from left/right border
+  case 2:
+    whereX=(ancho-1);
+    // do not put break here:
+  case 0:
+    // Exit should be on an even row.
+    whereY=(int(random(2, alto-1))/2)*2;
+    dirX=(whereX==0 ? 1: -1);
+    break;
+  default:
+    // whereX=1. from top/bottom.
+    // Exit should be on an even column.
+    whereX=(int(random(2, ancho-1))/2)*2;
+    whereY=((random(50)>=25) ? 0 : alto-1);
+    dirY=((whereY==0) ? 1:-1);
+  }
+  salidaX=whereX;
+  salidaY=whereY;
+  printms("whereX="+whereX+" whereY="+whereY);
+  printms("dirX="+dirX+" dirY="+dirY);
+  do {
+    if (whereX<0|| whereX>ancho) break;
+    if (whereY<0|| whereY>alto) break;
+    if (mapa[whereX][whereY]==MAPA_PASILLO) break;
+    mapa[whereX][whereY]=MAPA_PASILLO;
+    whereX+=dirX;
+    whereY+=dirY;
+    dibujar();
+    printms("whereX="+whereX+" whereY="+whereY);
+    printms("dirX="+dirX+" dirY="+dirY);
+  } while ( true);
+  mapa[salidaX][salidaY]=MAPA_EXIT;
+}
+
+/* Makes some shapes for 3d map */
+void makeShapes() {
+  makeExitSign();
 }
